@@ -36,7 +36,7 @@ Release signing reads `keystore.properties`, which is git-ignored. Keep keystore
 - The audit log records actions and IDs only, never clinical values.
 
 ## Known gaps
-No Compose UI or instrumented tests, no migration tests, no localization, no lint run, release signing not exercised.
+No migration tests, no localization, no lint run, release signing not exercised.
 
 ## Instrumented tests and CI
 

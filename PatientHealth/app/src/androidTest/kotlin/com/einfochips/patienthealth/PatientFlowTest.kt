@@ -58,6 +58,8 @@ class PatientFlowTest {
         // Saving switches to the dashboard.
         rule.waitUntilAtLeastOneExists(hasText("Table"), 5_000)
         rule.onNodeWithText("Table").performClick()
-        rule.waitUntilAtLeastOneExists(hasText("130", substring = true), 3_000)
+        // The table row states the value and flags it in text. The stats row also shows 130.0,
+        // so assert on the table-only "abnormal" wording rather than the number alone.
+        rule.waitUntilAtLeastOneExists(hasText("130.0 bpm", substring = true) and hasText("abnormal", substring = true), 3_000)
     }
 }
