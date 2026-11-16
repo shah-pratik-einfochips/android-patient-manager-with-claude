@@ -37,3 +37,13 @@ Release signing reads `keystore.properties`, which is git-ignored. Keep keystore
 
 ## Known gaps
 No Compose UI or instrumented tests, no migration tests, no localization, no lint run, release signing not exercised.
+
+## Instrumented tests and CI
+
+`app/src/androidTest` holds a Compose UI test (`PatientFlowTest`) that registers a patient, records an abnormal reading and opens the dashboard on a device or emulator:
+
+```bash
+cd PatientHealth && ./gradlew connectedDevDebugAndroidTest
+```
+
+GitHub Actions (`.github/workflows/ci.yml`) runs the unit tests and a debug build, then the instrumented test on an API 34 emulator, for every push to `main` and every pull request.
