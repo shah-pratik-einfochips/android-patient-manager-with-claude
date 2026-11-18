@@ -187,7 +187,7 @@ fun DashboardTab(patient: Patient, vm: PatientDetailViewModel) {
                     ExportKind.PDF -> ExportService.pdf(patient, records)
                 }
                 ExportService.share(context, bytes, kind.extension)
-            }
+            }.also { vm.logExport(kind) }
         })
     }
 }

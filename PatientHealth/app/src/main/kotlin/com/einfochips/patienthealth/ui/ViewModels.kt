@@ -138,6 +138,11 @@ class PatientDetailViewModel @Inject constructor(private val repo: PatientReposi
         val pid = id.value ?: return
         viewModelScope.launch { repo.deletePatient(pid); onDone() }
     }
+
+    /** Records an export in the audit trail (action and patient id only, never clinical values). */
+    internal suspend fun logExport(kind: ExportKind) {
+        id.value?.let { repo.log("export.${kind.extension}", it) }
+    }
 }
 
 @HiltViewModel
