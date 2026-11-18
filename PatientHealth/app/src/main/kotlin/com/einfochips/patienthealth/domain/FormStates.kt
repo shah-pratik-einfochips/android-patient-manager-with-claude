@@ -152,10 +152,14 @@ object DashboardCalculator {
     data class Stats(val min: Double, val max: Double, val average: Double, val latest: Double, val count: Int)
     data class Point(val time: Long, val value: Double, val abnormal: Boolean)
 
-    private const val DAY_MS = 86_400_000L
+    const val DAY_MS = 86_400_000L
+    const val WINDOW_DAYS = 7
+
+    /** Start of the dashboard window ending at [now]. */
+    fun windowStart(now: Long = System.currentTimeMillis()): Long = now - WINDOW_DAYS * DAY_MS
 
     /** Records from the last [days] days up to [now], oldest first. */
-    fun recent(records: List<VitalRecord>, days: Int = 7, now: Long = System.currentTimeMillis()): List<VitalRecord> =
+    fun recent(records: List<VitalRecord>, days: Int = WINDOW_DAYS, now: Long = System.currentTimeMillis()): List<VitalRecord> =
         records.filter { it.recordedAt in (now - days * DAY_MS)..now }.sortedBy { it.recordedAt }
 
     fun points(records: List<VitalRecord>, type: VitalType): List<Point> =

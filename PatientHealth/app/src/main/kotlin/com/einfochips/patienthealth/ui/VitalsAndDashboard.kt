@@ -176,12 +176,11 @@ fun DashboardTab(patient: Patient, vm: PatientDetailViewModel) {
             withContext(Dispatchers.Default) {
                 if (csv) ExportService.share(context, ExportService.csv(records).toByteArray(), "csv")
                 else ExportService.share(context, ExportService.pdf(patient, records), "pdf")
-            }.also { vm_log(vm) }
+            }
         })
     }
 }
 
-private fun vm_log(@Suppress("UNUSED_PARAMETER") vm: PatientDetailViewModel) { /* export is audited via ViewModel in a later iteration */ }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
