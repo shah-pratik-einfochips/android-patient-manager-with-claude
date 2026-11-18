@@ -10,6 +10,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.waitUntilAtLeastOneExists
+import androidx.compose.ui.test.waitUntilDoesNotExist
 import androidx.compose.ui.test.hasContentDescription
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.einfochips.patienthealth.ui.MainActivity
@@ -20,7 +21,7 @@ import org.junit.runner.RunWith
 /**
  * End-to-end flow on a device or emulator: register a patient, record an abnormal reading,
  * open the dashboard. Runs against the real app graph, so it uses a unique medical ID per run
- * instead of assuming a clean database.
+ * instead of assuming a clean database, and deletes the patient it created at the end.
  */
 @OptIn(ExperimentalTestApi::class)
 @RunWith(AndroidJUnit4::class)
@@ -61,5 +62,11 @@ class PatientFlowTest {
         // The table row states the value and flags it in text. The stats row also shows 130.0,
         // so assert on the table-only "abnormal" wording rather than the number alone.
         rule.waitUntilAtLeastOneExists(hasText("130.0 bpm", substring = true) and hasText("abnormal", substring = true), 3_000)
+
+        // Clean up: the test runs against the real database, so delete the patient it created.
+        // This also covers the delete-confirmation flow.
+        rule.onNodeWithContentDescription("Delete patient").performClick()
+        rule.onNodeWithText("Delete").performClick()
+        rule.waitUntilDoesNotExist(hasText("ID $medicalId"), 5_000)
     }
 }
