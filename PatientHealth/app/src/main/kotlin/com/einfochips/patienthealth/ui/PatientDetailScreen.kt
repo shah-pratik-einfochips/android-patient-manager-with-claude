@@ -38,11 +38,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.einfochips.patienthealth.domain.Patient
-import java.text.DateFormat
 import java.time.LocalDate
 import java.util.Date
 import kotlinx.coroutines.launch
@@ -106,7 +104,7 @@ fun PatientDetailScreen(
 
 @Composable
 private fun ProfileTab(p: Patient) {
-    val df = DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT)
+    val df = rememberDateTimeFormat()
     Column(Modifier.verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Heading("Demographics")
         LabeledRow("Medical ID", p.medicalId)
@@ -136,26 +134,31 @@ private fun ProfileTab(p: Patient) {
 internal fun Heading(text: String) =
     Text(text, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 8.dp))
 
+internal enum class ExportKind(val label: String, val mimeType: String, val extension: String) {
+    CSV("Export CSV", "text/csv", "csv"),
+    PDF("Export PDF", "application/pdf", "pdf"),
+}
+
+/** One button per [ExportKind]; [build] writes the file and returns its shareable URI. */
 @Composable
-internal fun ShareButtons(context: android.content.Context, build: suspend (csv: Boolean) -> android.net.Uri?, enabled: Boolean) {
+internal fun ShareButtons(context: android.content.Context, build: suspend (ExportKind) -> android.net.Uri, enabled: Boolean) {
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        listOf(true to "Export CSV", false to "Export PDF").forEach { (csv, label) ->
+        ExportKind.entries.forEach { kind ->
             androidx.compose.material3.OutlinedButton(
                 onClick = {
                     scope.launch {
-                        build(csv)?.let { uri ->
-                            val send = Intent(Intent.ACTION_SEND).apply {
-                                type = if (csv) "text/csv" else "application/pdf"
-                                putExtra(Intent.EXTRA_STREAM, uri)
-                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                            }
-                            context.startActivity(Intent.createChooser(send, label))
+                        val uri = build(kind)
+                        val send = Intent(Intent.ACTION_SEND).apply {
+                            type = kind.mimeType
+                            putExtra(Intent.EXTRA_STREAM, uri)
+                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                         }
+                        context.startActivity(Intent.createChooser(send, kind.label))
                     }
                 },
                 enabled = enabled,
-            ) { Text(label) }
+            ) { Text(kind.label) }
         }
     }
 }

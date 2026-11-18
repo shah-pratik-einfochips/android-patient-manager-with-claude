@@ -138,8 +138,6 @@ class PatientDetailViewModel @Inject constructor(private val repo: PatientReposi
         val pid = id.value ?: return
         viewModelScope.launch { repo.deletePatient(pid); onDone() }
     }
-
-    suspend fun allVitals(): List<VitalRecord> = id.value?.let { repo.allVitals(it) }.orEmpty()
 }
 
 @HiltViewModel

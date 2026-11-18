@@ -57,10 +57,9 @@ import com.einfochips.patienthealth.domain.ValidationService
 import com.einfochips.patienthealth.domain.VitalRecord
 import com.einfochips.patienthealth.domain.VitalType
 import com.einfochips.patienthealth.domain.WeightUnit
-import com.einfochips.patienthealth.domain.roundTo
+import com.einfochips.patienthealth.domain.oneDecimal
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.text.DateFormat
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
@@ -84,40 +83,36 @@ fun VitalsEntryTab(vm: PatientDetailViewModel, onSaved: () -> Unit) {
         }, s.dateError, showError = true)
 
         Heading("Blood Pressure")
-        FormField("Systolic (mmHg)", s.systolic, { v -> vm.updateEntry { it.copy(systolic = v) } }, error = s.systolicError,
-            abnormal = s.isAbnormal(s.systolicValue, VitalType.SYSTOLIC), keyboardType = KeyboardType.Decimal)
-        FormField("Diastolic (mmHg)", s.diastolic, { v -> vm.updateEntry { it.copy(diastolic = v) } }, error = s.diastolicError,
-            abnormal = s.isAbnormal(s.diastolicValue, VitalType.DIASTOLIC), keyboardType = KeyboardType.Decimal)
+        VitalField("Systolic (mmHg)", s.systolic, { v -> vm.updateEntry { it.copy(systolic = v) } }, s.systolicError, s.isAbnormal(VitalType.SYSTOLIC))
+        VitalField("Diastolic (mmHg)", s.diastolic, { v -> vm.updateEntry { it.copy(diastolic = v) } }, s.diastolicError, s.isAbnormal(VitalType.DIASTOLIC))
         s.pairError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         val map = s.mapValue
         Row(Modifier.semantics(mergeDescendants = true) {}, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("MAP (auto): ${map?.let { "%.1f mmHg".format(Locale.US, it) } ?: "—"}")
-            if (s.isAbnormal(map, VitalType.MAP)) Icon(Icons.Filled.Warning, "Abnormal value", tint = MaterialTheme.colorScheme.error)
+            Text("MAP (auto): ${map?.let { "${it.oneDecimal()} mmHg" } ?: "—"}")
+            if (s.isAbnormal(VitalType.MAP)) Icon(Icons.Filled.Warning, "Abnormal value", tint = MaterialTheme.colorScheme.error)
         }
 
         Heading("Vitals")
-        FormField("Heart rate (bpm)", s.heartRate, { v -> vm.updateEntry { it.copy(heartRate = v) } }, error = s.heartRateError,
-            abnormal = s.isAbnormal(s.heartRateValue, VitalType.HEART_RATE), keyboardType = KeyboardType.Decimal)
-        FormField("Respiratory rate (breaths/min)", s.respiratoryRate, { v -> vm.updateEntry { it.copy(respiratoryRate = v) } }, error = s.respiratoryError,
-            abnormal = s.isAbnormal(s.respiratoryRateValue, VitalType.RESPIRATORY_RATE), keyboardType = KeyboardType.Decimal)
-        FormField("SpO₂ (%)", s.spo2, { v -> vm.updateEntry { it.copy(spo2 = v) } }, error = s.spo2Error,
-            abnormal = s.isAbnormal(s.spo2Value, VitalType.SPO2), keyboardType = KeyboardType.Decimal)
+        VitalField("Heart rate (bpm)", s.heartRate, { v -> vm.updateEntry { it.copy(heartRate = v) } }, s.heartRateError, s.isAbnormal(VitalType.HEART_RATE))
+        VitalField("Respiratory rate (breaths/min)", s.respiratoryRate, { v -> vm.updateEntry { it.copy(respiratoryRate = v) } }, s.respiratoryError,
+            s.isAbnormal(VitalType.RESPIRATORY_RATE))
+        VitalField("SpO₂ (%)", s.spo2, { v -> vm.updateEntry { it.copy(spo2 = v) } }, s.spo2Error, s.isAbnormal(VitalType.SPO2))
 
         Heading("Body Measurements")
         UnitChoice("Height unit", HeightUnit.entries, s.heightUnit, { it.label }) { u -> vm.updateEntry { it.copy(heightUnit = u) } }
         if (s.heightUnit == HeightUnit.CM) {
-            FormField("Height (cm)", s.heightCm, { v -> vm.updateEntry { it.copy(heightCm = v) } }, error = s.heightError, keyboardType = KeyboardType.Decimal)
+            VitalField("Height (cm)", s.heightCm, { v -> vm.updateEntry { it.copy(heightCm = v) } }, s.heightError)
         } else {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FormField("Feet", s.heightFeet, { v -> vm.updateEntry { it.copy(heightFeet = v) } }, Modifier.weight(1f), error = s.heightError, keyboardType = KeyboardType.Decimal)
-                FormField("Inches", s.heightInches, { v -> vm.updateEntry { it.copy(heightInches = v) } }, Modifier.weight(1f), keyboardType = KeyboardType.Decimal)
+                VitalField("Feet", s.heightFeet, { v -> vm.updateEntry { it.copy(heightFeet = v) } }, s.heightError, modifier = Modifier.weight(1f))
+                VitalField("Inches", s.heightInches, { v -> vm.updateEntry { it.copy(heightInches = v) } }, null, modifier = Modifier.weight(1f))
             }
         }
         UnitChoice("Weight unit", WeightUnit.entries, s.weightUnit, { it.label }) { u -> vm.updateEntry { it.copy(weightUnit = u) } }
-        FormField("Weight (${s.weightUnit.label})", s.weight, { v -> vm.updateEntry { it.copy(weight = v) } }, error = s.weightError, keyboardType = KeyboardType.Decimal)
+        VitalField("Weight (${s.weightUnit.label})", s.weight, { v -> vm.updateEntry { it.copy(weight = v) } }, s.weightError)
         UnitChoice("Temperature unit", TemperatureUnit.entries, s.temperatureUnit, { it.label }) { u -> vm.updateEntry { it.copy(temperatureUnit = u) } }
-        FormField("Temperature (${s.temperatureUnit.label})", s.temperature, { v -> vm.updateEntry { it.copy(temperature = v) } }, error = s.temperatureError,
-            abnormal = s.isAbnormal(s.temperatureValueC, VitalType.TEMPERATURE), keyboardType = KeyboardType.Decimal)
+        VitalField("Temperature (${s.temperatureUnit.label})", s.temperature, { v -> vm.updateEntry { it.copy(temperature = v) } }, s.temperatureError,
+            s.isAbnormal(VitalType.TEMPERATURE))
 
         Heading("Pain & Symptoms")
         val pain = s.painLevel
@@ -135,6 +130,17 @@ fun VitalsEntryTab(vm: PatientDetailViewModel, onSaved: () -> Unit) {
         Button({ vm.saveVitals(onSaved) }, enabled = s.canSave, modifier = Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 24.dp)) { Text("Save Vitals") }
     }
 }
+
+/** Numeric vitals field: decimal keyboard, live error and the abnormal-value marker. */
+@Composable
+private fun VitalField(
+    label: String,
+    value: String,
+    onChange: (String) -> Unit,
+    error: String?,
+    abnormal: Boolean = false,
+    modifier: Modifier = Modifier.fillMaxWidth(),
+) = FormField(label, value, onChange, modifier, error = error, abnormal = abnormal, keyboardType = KeyboardType.Decimal)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -154,6 +160,7 @@ private fun <T> UnitChoice(label: String, options: List<T>, selected: T, text: (
 fun DashboardTab(patient: Patient, vm: PatientDetailViewModel) {
     val all by vm.recentVitals.collectAsStateWithLifecycle()
     val records = remember(all) { DashboardCalculator.recent(all) }
+    val newestFirst = remember(records) { records.asReversed() }
     var type by rememberSaveable { mutableStateOf(VitalType.HEART_RATE) }
     var chart by rememberSaveable { mutableStateOf(true) }
     val context = LocalContext.current
@@ -167,15 +174,19 @@ fun DashboardTab(patient: Patient, vm: PatientDetailViewModel) {
         ViewToggle(chart) { chart = it }
 
         if (records.isEmpty()) {
-            Text("No vitals recorded in the last 7 days.", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(vertical = 24.dp))
+            Text("No vitals recorded in the last ${DashboardCalculator.WINDOW_DAYS} days.", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(vertical = 24.dp))
         } else {
-            StatsRow(records, type)
-            if (chart) VitalChart(DashboardCalculator.points(records, type), type) else VitalTable(records.reversed())
+            val points = remember(records, type) { DashboardCalculator.points(records, type) }
+            StatsRow(points, type)
+            if (chart) VitalChart(points, type) else VitalTable(newestFirst)
         }
-        ShareButtons(context, enabled = records.isNotEmpty(), build = { csv ->
+        ShareButtons(context, enabled = records.isNotEmpty(), build = { kind ->
             withContext(Dispatchers.Default) {
-                if (csv) ExportService.share(context, ExportService.csv(records).toByteArray(), "csv")
-                else ExportService.share(context, ExportService.pdf(patient, records), "pdf")
+                val bytes = when (kind) {
+                    ExportKind.CSV -> ExportService.csv(records).toByteArray()
+                    ExportKind.PDF -> ExportService.pdf(patient, records)
+                }
+                ExportService.share(context, bytes, kind.extension)
             }
         })
     }
@@ -192,8 +203,8 @@ private fun ViewToggle(chart: Boolean, onChange: (Boolean) -> Unit) {
 }
 
 @Composable
-private fun StatsRow(records: List<VitalRecord>, type: VitalType) {
-    val st = DashboardCalculator.stats(records, type)
+private fun StatsRow(points: List<DashboardCalculator.Point>, type: VitalType) {
+    val st = remember(points) { DashboardCalculator.statsOf(points) }
     if (st == null) { Text("No ${type.title} readings"); return }
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
         Stat("Latest", st.latest, type, flag = ValidationService.isAbnormal(st.latest, type))
@@ -203,7 +214,7 @@ private fun StatsRow(records: List<VitalRecord>, type: VitalType) {
 
 @Composable
 private fun Stat(label: String, v: Double, type: VitalType, flag: Boolean = false) {
-    val shown = "%.1f".format(Locale.US, v)
+    val shown = v.oneDecimal()
     Column(
         horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally,
         modifier = Modifier.semantics(mergeDescendants = true) { contentDescription = "$label $shown ${type.unit}${if (flag) ", abnormal" else ""}" },
@@ -216,7 +227,7 @@ private fun Stat(label: String, v: Double, type: VitalType, flag: Boolean = fals
 
 @Composable
 private fun VitalTable(records: List<VitalRecord>) {
-    val df = DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT)
+    val df = rememberDateTimeFormat()
     LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         items(records, key = { it.id }) { r ->
             Card(Modifier.fillMaxWidth()) {
@@ -225,9 +236,8 @@ private fun VitalTable(records: List<VitalRecord>) {
                     VitalType.entries.forEach { t ->
                         r.value(t)?.let { v ->
                             val bad = ValidationService.isAbnormal(v, t)
-                            val shown = "%.1f".format(Locale.US, v)
                             Text(
-                                "${t.title}: $shown ${t.unit}${if (bad) "  ⚠ abnormal" else ""}",
+                                "${t.title}: ${v.oneDecimal()} ${t.unit}${if (bad) "  ⚠ abnormal" else ""}",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = if (bad) MaterialTheme.colorScheme.error else Color.Unspecified,
                             )
@@ -249,17 +259,20 @@ private fun VitalChart(points: List<DashboardCalculator.Point>, type: VitalType)
     val band = Color(0xFF2E7D32).copy(alpha = 0.15f)
     val axis = MaterialTheme.colorScheme.onSurfaceVariant
     val label = TextStyle(fontSize = 10.sp, color = axis)
-    val summary = "${type.title} line chart, ${points.size} readings from ${"%.1f".format(Locale.US, points.minOf { it.value })} to " +
-        "${"%.1f".format(Locale.US, points.maxOf { it.value })} ${type.unit}, ${points.count { it.abnormal }} abnormal. Switch to Table for details."
+    // Derived once per data change, not on every draw pass.
+    val (minValue, maxValue) = remember(points) { points.minOf { it.value } to points.maxOf { it.value } }
+    val (t0, t1) = remember(points) { points.minOf { it.time } to points.maxOf { it.time } }
+    val dayFormat = remember { java.text.SimpleDateFormat("d MMM", Locale.getDefault()) }
+    val summary = "${type.title} line chart, ${points.size} readings from ${minValue.oneDecimal()} to " +
+        "${maxValue.oneDecimal()} ${type.unit}, ${points.count { it.abnormal }} abnormal. Switch to Table for details."
 
     Canvas(Modifier.fillMaxWidth().height(260.dp).semantics { contentDescription = summary }) {
         val padL = 48.dp.toPx(); val padB = 24.dp.toPx(); val padT = 8.dp.toPx(); val padR = 12.dp.toPx()
         val w = size.width - padL - padR; val h = size.height - padT - padB
-        var lo = minOf(points.minOf { it.value }, type.normalRange?.start ?: Double.MAX_VALUE)
-        var hi = maxOf(points.maxOf { it.value }, type.normalRange?.endInclusive ?: Double.MIN_VALUE)
+        var lo = minOf(minValue, type.normalRange?.start ?: Double.MAX_VALUE)
+        var hi = maxOf(maxValue, type.normalRange?.endInclusive ?: Double.MIN_VALUE)
         if (hi - lo < 1e-6) { lo -= 1; hi += 1 }
         val pad = (hi - lo) * 0.1; lo -= pad; hi += pad
-        val t0 = points.minOf { it.time }; val t1 = points.maxOf { it.time }
         fun x(t: Long) = padL + if (t1 == t0) w / 2 else ((t - t0).toFloat() / (t1 - t0)) * w
         fun y(v: Double) = padT + (1 - ((v - lo) / (hi - lo)).toFloat()) * h
 
@@ -270,9 +283,8 @@ private fun VitalChart(points: List<DashboardCalculator.Point>, type: VitalType)
         listOf(hi, (hi + lo) / 2, lo).forEach { v ->
             drawText(measurer, "%.0f".format(Locale.US, v), Offset(2.dp.toPx(), y(v) - 7.dp.toPx()), label)
         }
-        val df = java.text.SimpleDateFormat("d MMM", Locale.getDefault())
-        drawText(measurer, df.format(Date(t0)), Offset(padL, padT + h + 4.dp.toPx()), label)
-        if (t1 != t0) drawText(measurer, df.format(Date(t1)), Offset(padL + w - 36.dp.toPx(), padT + h + 4.dp.toPx()), label)
+        drawText(measurer, dayFormat.format(Date(t0)), Offset(padL, padT + h + 4.dp.toPx()), label)
+        if (t1 != t0) drawText(measurer, dayFormat.format(Date(t1)), Offset(padL + w - 36.dp.toPx(), padT + h + 4.dp.toPx()), label)
 
         val path = Path()
         points.forEachIndexed { i, p -> if (i == 0) path.moveTo(x(p.time), y(p.value)) else path.lineTo(x(p.time), y(p.value)) }

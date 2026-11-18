@@ -1,6 +1,5 @@
 package com.einfochips.patienthealth.data
 
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext

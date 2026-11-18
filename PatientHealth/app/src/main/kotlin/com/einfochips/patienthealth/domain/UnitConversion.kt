@@ -4,6 +4,7 @@ import kotlin.math.pow
 import kotlin.math.abs
 import kotlin.math.floor
 import kotlin.math.sign
+import java.util.Locale
 
 object UnitConversion {
     private const val CM_PER_INCH = 2.54
@@ -35,3 +36,6 @@ fun Double.roundTo(places: Int): Double {
     val p = 10.0.pow(places)
     return sign * floor(abs(this) * p + 0.5) / p
 }
+
+/** One-decimal display text ("72.0"), locale-independent so screens, tests and exports agree. */
+fun Double.oneDecimal(): String = "%.1f".format(Locale.US, this)
