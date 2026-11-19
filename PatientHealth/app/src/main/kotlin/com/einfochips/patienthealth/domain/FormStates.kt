@@ -139,6 +139,22 @@ data class VitalsEntryState(
     fun isAbnormal(value: Double?, type: VitalType): Boolean =
         value != null && ValidationService.validateVital(value, type).isValid && ValidationService.isAbnormal(value, type)
 
+    /** [isAbnormal] for the form's own value of [type], so a field can't be checked against the wrong value. */
+    fun isAbnormal(type: VitalType): Boolean = isAbnormal(valueOf(type), type)
+
+    private fun valueOf(type: VitalType): Double? = when (type) {
+        VitalType.SYSTOLIC -> systolicValue
+        VitalType.DIASTOLIC -> diastolicValue
+        VitalType.MAP -> mapValue
+        VitalType.HEART_RATE -> heartRateValue
+        VitalType.HEIGHT -> heightValueCm
+        VitalType.WEIGHT -> weightValueKg
+        VitalType.TEMPERATURE -> temperatureValueC
+        VitalType.RESPIRATORY_RATE -> respiratoryRateValue
+        VitalType.SPO2 -> spo2Value
+        VitalType.PAIN_LEVEL -> painLevel?.toDouble()
+    }
+
     fun toRecord(patientId: String): VitalRecord = VitalRecord(
         patientId = patientId, recordedAt = recordedAt, systolic = systolicValue, diastolic = diastolicValue,
         heartRate = heartRateValue, heightCm = heightValueCm?.roundTo(1), weightKg = weightValueKg?.roundTo(1),
@@ -152,17 +168,22 @@ object DashboardCalculator {
     data class Stats(val min: Double, val max: Double, val average: Double, val latest: Double, val count: Int)
     data class Point(val time: Long, val value: Double, val abnormal: Boolean)
 
-    private const val DAY_MS = 86_400_000L
+    const val DAY_MS = 86_400_000L
+    const val WINDOW_DAYS = 7
+
+    /** Start of the dashboard window ending at [now]. */
+    fun windowStart(now: Long = System.currentTimeMillis()): Long = now - WINDOW_DAYS * DAY_MS
 
     /** Records from the last [days] days up to [now], oldest first. */
-    fun recent(records: List<VitalRecord>, days: Int = 7, now: Long = System.currentTimeMillis()): List<VitalRecord> =
+    fun recent(records: List<VitalRecord>, days: Int = WINDOW_DAYS, now: Long = System.currentTimeMillis()): List<VitalRecord> =
         records.filter { it.recordedAt in (now - days * DAY_MS)..now }.sortedBy { it.recordedAt }
 
     fun points(records: List<VitalRecord>, type: VitalType): List<Point> =
         records.mapNotNull { r -> r.value(type)?.let { Point(r.recordedAt, it, ValidationService.isAbnormal(it, type)) } }
 
-    fun stats(records: List<VitalRecord>, type: VitalType): Stats? {
-        val pts = points(records, type)
+    fun stats(records: List<VitalRecord>, type: VitalType): Stats? = statsOf(points(records, type))
+
+    fun statsOf(pts: List<Point>): Stats? {
         val latest = pts.maxByOrNull { it.time } ?: return null
         val v = pts.map { it.value }
         return Stats(v.min(), v.max(), v.average().roundTo(1), latest.value, v.size)

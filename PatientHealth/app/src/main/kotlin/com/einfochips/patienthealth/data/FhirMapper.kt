@@ -1,22 +1,18 @@
 package com.einfochips.patienthealth.data
 
-import com.einfochips.patienthealth.domain.BloodType
 import com.einfochips.patienthealth.domain.Gender
 import com.einfochips.patienthealth.domain.Patient
 import com.einfochips.patienthealth.domain.VitalRecord
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.JsonObjectBuilder
 import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.double
 import kotlinx.serialization.json.doubleOrNull
-import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
-import kotlinx.serialization.json.putJsonObject
 import java.time.Instant
 import java.time.LocalDate
 
@@ -84,6 +80,15 @@ object FhirMapper {
         Spec("72514-3", "Pain severity 0-10", "{score}", { it.painLevel }, { r, v -> r.copy(painLevel = v) }),
     )
 
+    // Blood pressure is one panel Observation with two components, plus MAP on its own.
+    private const val BP_PANEL = "85354-9"
+    private const val MEAN_BP = "8478-0"
+    private const val MM_HG = "mm[Hg]"
+    private val bpComponents = listOf(
+        Spec("8480-6", "Systolic blood pressure", MM_HG, { it.systolic }, { r, v -> r.copy(systolic = v) }),
+        Spec("8462-4", "Diastolic blood pressure", MM_HG, { it.diastolic }, { r, v -> r.copy(diastolic = v) }),
+    )
+
     private fun codeable(code: String, display: String) = buildJsonObject {
         putJsonArray("coding") { add(buildJsonObject { put("system", LOINC); put("code", code); put("display", display) }) }
         put("text", display)
@@ -93,10 +98,15 @@ object FhirMapper {
         put("value", v); put("unit", unit); put("system", UCUM); put("code", unit)
     }
 
-    private fun observation(code: String, display: String, v: Double, unit: String, subject: JsonObject, whenIso: String) = buildJsonObject {
+    /** Fields every vital-signs Observation shares. */
+    private fun JsonObjectBuilder.envelope(code: String, display: String, subject: JsonObject, whenIso: String) {
         put("resourceType", "Observation"); put("status", "final")
         putJsonArray("category") { add(vitalSignsCategory) }
         put("code", codeable(code, display)); put("subject", subject); put("effectiveDateTime", whenIso)
+    }
+
+    private fun observation(code: String, display: String, v: Double, unit: String, subject: JsonObject, whenIso: String) = buildJsonObject {
+        envelope(code, display, subject, whenIso)
         put("valueQuantity", quantity(v, unit))
     }
 
@@ -113,15 +123,12 @@ object FhirMapper {
         val out = mutableListOf<JsonObject>()
         if (r.systolic != null && r.diastolic != null) {
             out += buildJsonObject {
-                put("resourceType", "Observation"); put("status", "final")
-                putJsonArray("category") { add(vitalSignsCategory) }
-                put("code", codeable("85354-9", "Blood pressure panel")); put("subject", subject); put("effectiveDateTime", whenIso)
+                envelope(BP_PANEL, "Blood pressure panel", subject, whenIso)
                 putJsonArray("component") {
-                    add(buildJsonObject { put("code", codeable("8480-6", "Systolic blood pressure")); put("valueQuantity", quantity(r.systolic, "mm[Hg]")) })
-                    add(buildJsonObject { put("code", codeable("8462-4", "Diastolic blood pressure")); put("valueQuantity", quantity(r.diastolic, "mm[Hg]")) })
+                    for (c in bpComponents) add(buildJsonObject { put("code", codeable(c.code, c.display)); put("valueQuantity", quantity(c.read(r)!!, c.unit)) })
                 }
             }
-            r.map?.let { out += observation("8478-0", "Mean blood pressure", it, "mm[Hg]", subject, whenIso) }
+            r.map?.let { out += observation(MEAN_BP, "Mean blood pressure", it, MM_HG, subject, whenIso) }
         }
         for (s in specs) s.read(r)?.let { out += observation(s.code, s.display, it, s.unit, subject, whenIso) }
         return out
@@ -137,19 +144,13 @@ object FhirMapper {
         var r = VitalRecord(patientId = patientId, recordedAt = recordedAt)
         var found = false
         for (o in observations) {
-            val code = o.firstCode()
-            if (code == "85354-9") {
-                (o("component") as? JsonArray)?.forEach { c ->
-                    val co = c.jsonObject
-                    val v = co.quantityValue()
-                    if (v != null) when (co.firstCode()) {
-                        "8480-6" -> { r = r.copy(systolic = v); found = true }
-                        "8462-4" -> { r = r.copy(diastolic = v); found = true }
-                    }
-                }
-            } else {
-                val spec = specs.firstOrNull { it.code == code } ?: continue
-                o.quantityValue()?.let { r = spec.write(r, it); found = true }
+            // A BP panel carries its values in components; every other vital is the Observation itself.
+            val (candidates, parts) =
+                if (o.firstCode() == BP_PANEL) bpComponents to (o("component") as? JsonArray).orEmpty().map { it.jsonObject }
+                else specs to listOf(o)
+            for (part in parts) {
+                val spec = candidates.firstOrNull { it.code == part.firstCode() } ?: continue
+                part.quantityValue()?.let { r = spec.write(r, it); found = true }
             }
         }
         return if (found) r else null

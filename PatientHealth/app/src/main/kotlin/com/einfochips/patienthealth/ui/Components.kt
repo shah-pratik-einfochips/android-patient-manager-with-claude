@@ -1,6 +1,5 @@
 package com.einfochips.patienthealth.ui
 
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Warning
@@ -29,7 +28,9 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.Alignment
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
+import java.text.DateFormat
+import java.util.Locale
+import java.util.TimeZone
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
@@ -84,20 +85,26 @@ fun <T> DropdownField(label: String, options: List<T>, selected: T, text: (T) ->
     }
 }
 
-/** Read-only field that opens a date picker. [maxMillis] bounds selectable dates (UTC midnight). */
+/**
+ * Medium date, short time in the device locale. Reused across recompositions, but rebuilt when the
+ * time zone or locale changes, since a formatter captures both when it is created.
+ */
+@Composable
+fun rememberDateTimeFormat(): DateFormat =
+    remember(TimeZone.getDefault().id, Locale.getDefault()) { DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT) }
+
+/** Read-only field that opens a date picker; future dates can't be selected. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DateField(label: String, date: LocalDate?, onPick: (LocalDate) -> Unit, error: String?, showError: Boolean) {
     var open by remember { mutableStateOf(false) }
-    Column {
-        OutlinedTextField(
-            value = date?.toString().orEmpty(), onValueChange = {}, readOnly = true, label = { Text(label) },
-            isError = showError && error != null,
-            supportingText = { if (showError && error != null) Text(error) },
-            trailingIcon = { TextButton({ open = true }) { Text("Pick") } },
-            modifier = Modifier.fillMaxWidth().semantics { contentDescription = "$label, ${date ?: "not set"}. Opens date picker" },
-        )
-    }
+    OutlinedTextField(
+        value = date?.toString().orEmpty(), onValueChange = {}, readOnly = true, label = { Text(label) },
+        isError = showError && error != null,
+        supportingText = { if (showError && error != null) Text(error) },
+        trailingIcon = { TextButton({ open = true }) { Text("Pick") } },
+        modifier = Modifier.fillMaxWidth().semantics { contentDescription = "$label, ${date ?: "not set"}. Opens date picker" },
+    )
     if (open) {
         val state = rememberDatePickerState(
             initialSelectedDateMillis = date?.atStartOfDay(ZoneOffset.UTC)?.toInstant()?.toEpochMilli(),
