@@ -13,7 +13,10 @@ import androidx.compose.ui.test.waitUntilAtLeastOneExists
 import androidx.compose.ui.test.waitUntilDoesNotExist
 import androidx.compose.ui.test.hasContentDescription
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
+import com.einfochips.patienthealth.di.AppModule
 import com.einfochips.patienthealth.ui.MainActivity
+import org.junit.After
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -21,19 +24,34 @@ import org.junit.runner.RunWith
 /**
  * End-to-end flow on a device or emulator: register a patient, record an abnormal reading,
  * open the dashboard. Runs against the real app graph, so it uses a unique medical ID per run
- * instead of assuming a clean database, and deletes the patient it created at the end.
+ * instead of assuming a clean database, and deletes the patient it created at the end
+ * (with a database-level fallback in [deleteTestPatient] if the test fails first).
  */
 @OptIn(ExperimentalTestApi::class)
 @RunWith(AndroidJUnit4::class)
 class PatientFlowTest {
     @get:Rule val rule = createAndroidComposeRule<MainActivity>()
 
+    private val medicalId = "MRN-UI-${System.currentTimeMillis()}"
+
     private fun field(label: String) = rule.onNode(hasSetTextAction() and hasText(label))
+
+    /**
+     * Safety net for failed runs: removes this run's patient (its vitals go with it via the
+     * cascade) straight from the database, so a failure before the in-test delete leaves no data.
+     */
+    @After
+    fun deleteTestPatient() {
+        val db = AppModule.database(InstrumentationRegistry.getInstrumentation().targetContext)
+        try {
+            db.openHelper.writableDatabase.execSQL("DELETE FROM patients WHERE medicalId = ?", arrayOf(medicalId))
+        } finally {
+            db.close()
+        }
+    }
 
     @Test
     fun registerPatientRecordVitalsAndViewDashboard() {
-        val medicalId = "MRN-UI-${System.currentTimeMillis()}"
-
         rule.onNodeWithContentDescription("Add patient").performClick()
         field("Medical ID").performTextInput(medicalId)
         field("First name").performTextInput("Maya")
