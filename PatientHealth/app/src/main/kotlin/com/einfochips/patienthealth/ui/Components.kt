@@ -29,6 +29,8 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.Alignment
 import androidx.compose.foundation.layout.Row
 import java.text.DateFormat
+import java.util.Locale
+import java.util.TimeZone
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
@@ -83,9 +85,13 @@ fun <T> DropdownField(label: String, options: List<T>, selected: T, text: (T) ->
     }
 }
 
-/** Medium date, short time in the device locale; remembered so it isn't rebuilt on every recomposition. */
+/**
+ * Medium date, short time in the device locale. Reused across recompositions, but rebuilt when the
+ * time zone or locale changes, since a formatter captures both when it is created.
+ */
 @Composable
-fun rememberDateTimeFormat(): DateFormat = remember { DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT) }
+fun rememberDateTimeFormat(): DateFormat =
+    remember(TimeZone.getDefault().id, Locale.getDefault()) { DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT) }
 
 /** Read-only field that opens a date picker; future dates can't be selected. */
 @OptIn(ExperimentalMaterial3Api::class)

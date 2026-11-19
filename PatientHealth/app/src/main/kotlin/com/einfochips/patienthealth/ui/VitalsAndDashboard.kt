@@ -262,7 +262,7 @@ private fun VitalChart(points: List<DashboardCalculator.Point>, type: VitalType)
     // Derived once per data change, not on every draw pass.
     val (minValue, maxValue) = remember(points) { points.minOf { it.value } to points.maxOf { it.value } }
     val (t0, t1) = remember(points) { points.minOf { it.time } to points.maxOf { it.time } }
-    val dayFormat = remember { java.text.SimpleDateFormat("d MMM", Locale.getDefault()) }
+    val dayFormat = remember(java.util.TimeZone.getDefault().id, Locale.getDefault()) { java.text.SimpleDateFormat("d MMM", Locale.getDefault()) }
     val summary = "${type.title} line chart, ${points.size} readings from ${minValue.oneDecimal()} to " +
         "${maxValue.oneDecimal()} ${type.unit}, ${points.count { it.abnormal }} abnormal. Switch to Table for details."
 
