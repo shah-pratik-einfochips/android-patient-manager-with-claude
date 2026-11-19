@@ -1,6 +1,7 @@
 package com.einfochips.patienthealth
 
 import com.einfochips.patienthealth.domain.*
+import com.einfochips.patienthealth.domain.DashboardCalculator.DAY_MS
 import org.junit.Assert.*
 import org.junit.Test
 import java.time.LocalDate
@@ -52,7 +53,7 @@ class ValidationServiceTest {
     }
     @Test fun recordedAt() {
         val now = System.currentTimeMillis()
-        assertTrue(ValidationService.validateRecordedAt(now - 3 * 86_400_000L, now).isValid)
+        assertTrue(ValidationService.validateRecordedAt(now - 3 * DAY_MS, now).isValid)
         assertFalse(ValidationService.validateRecordedAt(now + 3_600_000L, now).isValid)
     }
     @Test fun abnormal() {
@@ -158,8 +159,8 @@ class VitalsEntryStateTest {
         assertEquals(37.0, s.temperatureValueC!!, 0.01); assertNull(s.temperatureError)
         assertNotNull(s.copy(temperature = "200").temperatureError)
     }
-    @Test fun futureDate() = assertFalse(VitalsEntryState(heartRate = "70", recordedAt = System.currentTimeMillis() + 86_400_000L).canSave)
-    @Test fun pastDate() = assertTrue(VitalsEntryState(heartRate = "70", recordedAt = System.currentTimeMillis() - 5 * 86_400_000L).canSave)
+    @Test fun futureDate() = assertFalse(VitalsEntryState(heartRate = "70", recordedAt = System.currentTimeMillis() + DAY_MS).canSave)
+    @Test fun pastDate() = assertTrue(VitalsEntryState(heartRate = "70", recordedAt = System.currentTimeMillis() - 5 * DAY_MS).canSave)
     @Test fun painAlone() = assertTrue(VitalsEntryState(painLevel = 0).canSave)
     @Test fun symptomsAlone() = assertTrue(VitalsEntryState(symptoms = "Cough").canSave)
     @Test fun abnormalIndicator() {

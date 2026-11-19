@@ -1,0 +1,90 @@
+package com.einfochips.patienthealth
+
+import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.hasSetTextAction
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.waitUntilAtLeastOneExists
+import androidx.compose.ui.test.waitUntilDoesNotExist
+import androidx.compose.ui.test.hasContentDescription
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
+import com.einfochips.patienthealth.di.AppModule
+import com.einfochips.patienthealth.ui.MainActivity
+import org.junit.After
+import org.junit.Rule
+import org.junit.Test
+import org.junit.runner.RunWith
+
+/**
+ * End-to-end flow on a device or emulator: register a patient, record an abnormal reading,
+ * open the dashboard. Runs against the real app graph, so it uses a unique medical ID per run
+ * instead of assuming a clean database, and deletes the patient it created at the end
+ * (with a database-level fallback in [deleteTestPatient] if the test fails first).
+ */
+@OptIn(ExperimentalTestApi::class)
+@RunWith(AndroidJUnit4::class)
+class PatientFlowTest {
+    @get:Rule val rule = createAndroidComposeRule<MainActivity>()
+
+    private val medicalId = "MRN-UI-${System.currentTimeMillis()}"
+
+    private fun field(label: String) = rule.onNode(hasSetTextAction() and hasText(label))
+
+    /**
+     * Safety net for failed runs: removes this run's patient (its vitals go with it via the
+     * cascade) straight from the database, so a failure before the in-test delete leaves no data.
+     */
+    @After
+    fun deleteTestPatient() {
+        val db = AppModule.database(InstrumentationRegistry.getInstrumentation().targetContext)
+        try {
+            db.openHelper.writableDatabase.execSQL("DELETE FROM patients WHERE medicalId = ?", arrayOf(medicalId))
+        } finally {
+            db.close()
+        }
+    }
+
+    @Test
+    fun registerPatientRecordVitalsAndViewDashboard() {
+        rule.onNodeWithContentDescription("Add patient").performClick()
+        field("Medical ID").performTextInput(medicalId)
+        field("First name").performTextInput("Maya")
+        field("Last name").performTextInput("Patel")
+        rule.onNodeWithText("Pick").performScrollTo().performClick()
+        rule.onNodeWithText("OK").performClick()
+        rule.onNodeWithText("Save").performClick()
+
+        // Back on the list, the new patient is shown; open it.
+        rule.waitUntilAtLeastOneExists(hasText("ID $medicalId"), 5_000)
+        rule.onNodeWithText("ID $medicalId").performClick()
+
+        // Record vitals with an abnormal heart rate.
+        rule.onNodeWithText("Enter Vitals").performClick()
+        field("Heart rate (bpm)").performScrollTo().performTextInput("130")
+        field("Systolic (mmHg)").performScrollTo().performTextInput("120")
+        field("Diastolic (mmHg)").performScrollTo().performTextInput("80")
+        // The abnormal state must be exposed as text and an icon description, not colour alone.
+        rule.waitUntilAtLeastOneExists(hasText("Outside normal range"), 3_000)
+        rule.waitUntilAtLeastOneExists(hasContentDescription("Abnormal value"), 3_000)
+        rule.onNodeWithText("Save Vitals").performScrollTo().performClick()
+
+        // Saving switches to the dashboard.
+        rule.waitUntilAtLeastOneExists(hasText("Table"), 5_000)
+        rule.onNodeWithText("Table").performClick()
+        // The table row states the value and flags it in text. The stats row also shows 130.0,
+        // so assert on the table-only "abnormal" wording rather than the number alone.
+        rule.waitUntilAtLeastOneExists(hasText("130.0 bpm", substring = true) and hasText("abnormal", substring = true), 3_000)
+
+        // Clean up: the test runs against the real database, so delete the patient it created.
+        // This also covers the delete-confirmation flow.
+        rule.onNodeWithContentDescription("Delete patient").performClick()
+        rule.onNodeWithText("Delete").performClick()
+        rule.waitUntilDoesNotExist(hasText("ID $medicalId"), 5_000)
+    }
+}

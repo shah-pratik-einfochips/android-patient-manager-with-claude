@@ -6,13 +6,16 @@ import androidx.lifecycle.viewModelScope
 import com.einfochips.patienthealth.data.DuplicateMedicalIdException
 import com.einfochips.patienthealth.data.PatientRepository
 import com.einfochips.patienthealth.domain.AuditEntry
+import com.einfochips.patienthealth.domain.DashboardCalculator
 import com.einfochips.patienthealth.domain.Patient
 import com.einfochips.patienthealth.domain.PatientFormState
 import com.einfochips.patienthealth.domain.VitalRecord
 import com.einfochips.patienthealth.domain.VitalsEntryState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -26,8 +29,7 @@ import kotlinx.coroutines.launch
 import java.time.LocalDate
 import javax.inject.Inject
 
-private const val DAY_MS = 86_400_000L
-private fun <T> kotlinx.coroutines.flow.Flow<T>.eagerlyShared(scope: kotlinx.coroutines.CoroutineScope, initial: T): StateFlow<T> =
+private fun <T> Flow<T>.whileSubscribed(scope: CoroutineScope, initial: T): StateFlow<T> =
     stateIn(scope, SharingStarted.WhileSubscribed(5_000), initial)
 
 @HiltViewModel
@@ -38,7 +40,7 @@ class PatientListViewModel @Inject constructor(repo: PatientRepository) : ViewMo
 
     val patients: StateFlow<List<Patient>> = combine(repo.observePatients(), _query) { list, q ->
         if (q.isBlank()) list else list.filter { it.fullName.contains(q, true) || it.medicalId.contains(q, true) }
-    }.eagerlyShared(viewModelScope, emptyList())
+    }.whileSubscribed(viewModelScope, emptyList())
 }
 
 @HiltViewModel
@@ -86,12 +88,12 @@ class PatientDetailViewModel @Inject constructor(private val repo: PatientReposi
     private val id = MutableStateFlow<String?>(null)
 
     val patient: StateFlow<Patient?> = id.flatMapLatest { it?.let(repo::observePatient) ?: flowOf(null) }
-        .eagerlyShared(viewModelScope, null)
+        .whileSubscribed(viewModelScope, null)
 
     /** Vitals from the past 7 days, oldest first. */
     val recentVitals: StateFlow<List<VitalRecord>> = id.flatMapLatest { pid ->
-        pid?.let { repo.observeVitalsSince(it, System.currentTimeMillis() - 7 * DAY_MS) } ?: flowOf(emptyList())
-    }.eagerlyShared(viewModelScope, emptyList())
+        pid?.let { repo.observeVitalsSince(it, DashboardCalculator.windowStart()) } ?: flowOf(emptyList())
+    }.whileSubscribed(viewModelScope, emptyList())
 
     private val _entry = MutableStateFlow(VitalsEntryState())
     val entry: StateFlow<VitalsEntryState> = _entry.asStateFlow()
@@ -137,10 +139,13 @@ class PatientDetailViewModel @Inject constructor(private val repo: PatientReposi
         viewModelScope.launch { repo.deletePatient(pid); onDone() }
     }
 
-    suspend fun allVitals(): List<VitalRecord> = id.value?.let { repo.allVitals(it) }.orEmpty()
+    /** Records an export in the audit trail (action and patient id only, never clinical values). */
+    internal suspend fun logExport(kind: ExportKind) {
+        id.value?.let { repo.log("export.${kind.extension}", it) }
+    }
 }
 
 @HiltViewModel
 class SettingsViewModel @Inject constructor(repo: PatientRepository) : ViewModel() {
-    val audit: StateFlow<List<AuditEntry>> = repo.observeAudit(50).eagerlyShared(viewModelScope, emptyList())
+    val audit: StateFlow<List<AuditEntry>> = repo.observeAudit(50).whileSubscribed(viewModelScope, emptyList())
 }
